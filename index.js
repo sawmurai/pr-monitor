@@ -7,7 +7,7 @@ const env = require('node-env-file');
 try {
   env(__dirname + '/.env');
 } catch(e) {
-
+  console.error('.env file with API key missing!');
 }
 
 // basic auth
