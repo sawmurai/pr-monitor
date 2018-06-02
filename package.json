@@ -1,0 +1,17 @@
+{
+  "name": "pr-status",
+  "version": "1.0.0",
+  "description": "List status of PRs (build status)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cli-table": "^0.3.1",
+    "github-api": "^3.0.0",
+    "node-env-file": "^0.1.8",
+    "q": "^1.5.1"
+  }
+}
