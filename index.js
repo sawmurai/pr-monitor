@@ -7,7 +7,7 @@ const env = require('node-env-file');
 try {
   env(__dirname + '/.env');
 } catch(e) {
-  console.error('.env file with API key missing!');
+  console.error('.env file with GitHub API key missing!');
 }
 
 // basic auth
@@ -57,7 +57,7 @@ function getPendingPullRequests(repositories) {
       const prListDeferreds = [];
 
       prList.data.forEach(function(item) {
-        if (item.user.login !== username) {
+        if (username && item.user.login !== username) {
           return;
         }
 
