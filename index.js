@@ -66,13 +66,27 @@ function getPendingPullRequests(repositories) {
 
         repo.listStatuses(item.head.sha).then(function(result) {
           if (!result.data || !result.data[0]) {
-            results.push([repository, '', item.head.ref, item.base.ref, item._links.html.href]);
+            results.push([repository, 'success'.green, item.head.ref, item.base.ref, item._links.html.href]);
 
             prDeferred.reject();
             return;
           }
           
-          let state = result.data[0].state;
+          let state = 'success';
+
+          for (let i = 0; i < result.data.length; i++) {
+            const message = result.data[i];
+
+            if (message.state === 'error') {
+              state = message.state;
+
+              break;
+            }
+            
+            if (message.state === 'pending') {
+              state = message.state;
+            }
+          } 
         
           if (state == 'success') {
             state = state.green;
