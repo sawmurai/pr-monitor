@@ -1,8 +1,6 @@
-const GitHub = require('github-api');
 const Table = require('cli-table');
-const colors = require('colors');
-const Q = require('q');
 const env = require('node-env-file');
+const fetch = require('node-fetch');
 
 try {
   env(__dirname + '/.env');
@@ -10,105 +8,83 @@ try {
   console.error('.env file with GitHub API key missing!');
 }
 
-// basic auth
-const gh = new GitHub({
-  token: process.env.API_KEY
-});
-
-if (process.argv.length < 3) {
-  console.log("Usage: Show all PRs of organisation <organisation> opened by <username>. <username> is optional.")
-  console.log("node index.js <organisation> <username>")
-  process.exit();
-}
-
-const organisation = process.argv[2];
-let username;
-
-if (process.argv.length > 3) {
-  username =  process.argv[3];
-}
-
-let repoDeferreds = [];
-let results = new Table({
-  head: ['Repository', 'CI Build', 'Branch', 'Base', 'Link']
-});
-
-const deferred = Q.defer();
-gh.getOrganization(organisation).getRepos().then(function(repos) {
-  const repositoryNames = [];
-
-  repos.data.forEach(function(repo) {
-    repositoryNames.push(repo.name);
-  });
-
-  deferred.resolve(repositoryNames);
-}).catch(console.log);
-
-deferred.promise.then(getPendingPullRequests);
-
-function getPendingPullRequests(repositories) {
-  repositories.forEach(function(repository) {
-    const repo = gh.getRepo(organisation, repository);
-    
-    const repoDefered = Q.defer();
-    repoDeferreds.push(repoDefered.promise);
-
-    repo.listPullRequests().then(function(prList) {
-      const prListDeferreds = [];
-
-      prList.data.forEach(function(item) {
-        if (username && item.user.login !== username) {
-          return;
-        }
-
-        const prDeferred = Q.defer();    
-        prListDeferreds.push(prDeferred.promise);
-
-        repo.listStatuses(item.head.sha).then(function(result) {
-          if (!result.data || !result.data[0]) {
-            results.push([repository, 'success'.green, item.head.ref, item.base.ref, item._links.html.href]);
-
-            prDeferred.reject();
-            return;
+const query = `
+{
+  user(login: "${process.env.LOGIN}") {
+    pullRequests(last: 100, states: OPEN) {
+      edges {
+        node {
+          repository{
+            name
           }
+          state
+          resourcePath
+          baseRefName
+          headRefName
           
-          let state = 'success';
-
-          for (let i = 0; i < result.data.length; i++) {
-            const message = result.data[i];
-
-            if (message.state === 'error') {
-              state = message.state;
-
-              break;
+          createdAt
+          createdViaEmail
+          commits(last: 1) {
+            edges {
+              node {
+                commit {
+                  status {
+                    state
+                  }
+                }
+              }
             }
-            
-            if (message.state === 'pending') {
-              state = message.state;
-            }
-          } 
-        
-          if (state == 'success') {
-            state = state.green;
-          } else if (state == 'error' || state == 'failure') {
-            state = state.red;
-          } else {
-            state = state.yellow;
           }
+        }
+      }
+    }
+  }
+}`;
+ 
 
-          results.push([repository, state, item.head.ref, item.base.ref, item._links.html.href]);
-          prDeferred.resolve();
-        })
-        .catch(console.log);
-      });
+fetch('https://api.github.com/graphql', {
+  method: 'POST',
+  body: JSON.stringify({query}),
+  headers: {
+    'Authorization': `Bearer ${process.env.API_KEY}`,
+  },
+}).then(res => res.text())
+  .then(parseResult) // {"data":{"repository":{"issues":{"totalCount":247}}}}
+  .catch(error => console.error(error));
 
-      Q.allSettled(prListDeferreds).then(function() {
-        repoDefered.resolve();
-      });
-    }).catch(console.log);
+function parseResult(body) 
+{
+  const data = JSON.parse(body);
+  const results = new Table({
+    head: ['Repository', 'CI Build', 'Branch', 'Base', 'Link']
   });
 
-  Q.allSettled(repoDeferreds).then(function(promises) {
-    console.log(results.toString());
+  data.data.user.pullRequests.edges.forEach(edge => {
+    const node = edge.node;
+    
+    let state = '';
+    if (node.commits.edges[0].node.commit.status) {
+      state = node.commits.edges[0].node.commit.status.state;
+
+      switch (node.commits.edges[0].node.commit.status.state) {
+        case 'FAILURE':
+          state = state;
+        break;
+        case 'SUCCESS':
+          state = state;
+        break;
+      }
+      state = node.commits.edges[0].node.commit.status.state;
+    }
+
+    results.push([
+      node.repository.name,
+      state,
+      node.headRefName,
+      node.baseRefName,
+      'https://github.com' + node.resourcePath
+    ]);
   });
+
+  console.log(results.toString());
 }
