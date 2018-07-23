@@ -21,9 +21,13 @@ const query = `
           resourcePath
           baseRefName
           headRefName
-          
-          createdAt
-          createdViaEmail
+          reviews(last:10) {
+            edges{
+              node{
+                state
+              }
+            }
+          }
           commits(last: 1) {
             edges {
               node {
@@ -39,8 +43,7 @@ const query = `
       }
     }
   }
-}`;
- 
+}`; 
 
 fetch('https://api.github.com/graphql', {
   method: 'POST',
@@ -56,7 +59,7 @@ function parseResult(body)
 {
   const data = JSON.parse(body);
   const results = new Table({
-    head: ['Repository', 'CI Build', 'Branch', 'Base', 'Link']
+    head: ['Repository', 'CI Build', 'State', 'Branch', 'Base', 'Link']
   });
 
   data.data.user.pullRequests.edges.forEach(edge => {
@@ -64,22 +67,38 @@ function parseResult(body)
     
     let state = '';
     if (node.commits.edges[0].node.commit.status) {
-      state = node.commits.edges[0].node.commit.status.state;
-
       switch (node.commits.edges[0].node.commit.status.state) {
-        case 'FAILURE':
-          state = state;
-        break;
         case 'SUCCESS':
-          state = state;
+          state = 'OK';
+        break;
+        case 'FAILURE':
+          state = 'ERR';
         break;
       }
-      state = node.commits.edges[0].node.commit.status.state;
     }
 
+    let approval = '';
+    node.reviews.edges.forEach(edge => {
+      switch (node.reviews.edges[0].node.state) {
+        case 'APPROVED':
+        case 'DISMISSED':
+          if (approval !== 'N') {
+            approval = 'Y';
+          }
+        break;
+        case 'CHANGES_REQUESTED':
+          approval = 'N';
+        break;
+        case 'COMMENTED':
+          approval = 'C';
+        break;
+      }
+    });
+    
     results.push([
       node.repository.name,
       state,
+      approval,
       node.headRefName,
       node.baseRefName,
       'https://github.com' + node.resourcePath
