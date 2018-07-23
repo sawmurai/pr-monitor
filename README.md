@@ -12,15 +12,11 @@ you keep an overview over all the different builds you are waiting for if your C
 npm install
 ```
 
-2. Add API KEY to `.env.dist` and rename to `.env`
+2. Add API KEY and LOGIN to `.env.dist` and rename to `.env`
 
 # Usage
 
 ```bash
-node index.js <organisation> <username>
+node index.js
 ```
 
-## Parameters
-
-* organisation: Required. The organisation to crawl.
-* username: Optional. Only show PRs opened by this username.
