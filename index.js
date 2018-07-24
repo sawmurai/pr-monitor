@@ -59,12 +59,20 @@ function parseResult(body)
 {
   const data = JSON.parse(body);
   const results = new Table({
-    head: ['Repository', 'CI Build', 'State', 'Branch', 'Base', 'Link']
+    head: ['Repository', 'CI', 'Review', 'Branch', 'Base', 'Link']
   });
 
   data.data.user.pullRequests.edges.forEach(edge => {
     const node = edge.node;
-    
+
+    if (node.state !== 'OPEN') {
+      return;
+    }
+
+    if (node.resourcePath === '/jobcloud/unity-nginx/pull/52') {
+      return;
+    }   
+
     let state = '';
     if (node.commits.edges[0].node.commit.status) {
       switch (node.commits.edges[0].node.commit.status.state) {
@@ -74,23 +82,21 @@ function parseResult(body)
         case 'FAILURE':
           state = 'ERR';
         break;
+        case 'PENDING':
+          state = 'PEN';
+        break;
       }
     }
 
     let approval = '';
     node.reviews.edges.forEach(edge => {
-      switch (node.reviews.edges[0].node.state) {
+      switch (edge.node.state) {
         case 'APPROVED':
         case 'DISMISSED':
-          if (approval !== 'N') {
-            approval = 'Y';
-          }
+          approval = 'Approved';
         break;
         case 'CHANGES_REQUESTED':
-          approval = 'N';
-        break;
-        case 'COMMENTED':
-          approval = 'C';
+          approval = 'Changes requested';
         break;
       }
     });
