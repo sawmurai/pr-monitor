@@ -17,6 +17,6 @@ npm install
 # Usage
 
 ```bash
-node index.js
+node index.js.
 ```
 
