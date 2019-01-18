@@ -33,7 +33,13 @@ const query = `
               node {
                 commit {
                   status {
-                    state
+                    state, 
+                    contexts {
+                      targetUrl,
+                      state,
+                      description,
+                      context
+                    }
                   }
                 }
               }
@@ -102,6 +108,9 @@ function parseResult(body) {
     }
 
     let state = '';
+    let link = 'https://github.com' + node.resourcePath;
+    let failedJobs = [];
+    let errorUrl = '';
     if (node.commits.edges[0].node.commit.status) {
       switch (node.commits.edges[0].node.commit.status.state) {
         case 'SUCCESS':
@@ -109,6 +118,14 @@ function parseResult(body) {
         break;
         case 'FAILURE':
           state = 'ERR';
+
+          node.commits.edges[0].node.commit.status.contexts.forEach(function(context) {
+            if (context.state == 'ERROR') {
+              errorUrl = context.targetUrl;
+            } else if (context.state == 'FAILURE') {
+              failedJobs.push(context.context);
+            }
+          });
         break;
         case 'PENDING':
           state = 'PEN';
@@ -128,14 +145,22 @@ function parseResult(body) {
         break;
       }
     });
-    
+
+    if (errorUrl.length > 0) {
+      link += '\n' + errorUrl;
+    }
+
+    if (failedJobs.length > 0) {
+      link += '\n\nFailed:\n' + failedJobs.join('\n');
+    }
+
     results.push([
       node.repository.name,
       state,
       approval,
       node.headRefName,
       node.baseRefName,
-      'https://github.com' + node.resourcePath
+      link
     ]);
   });
 
@@ -158,5 +183,7 @@ function parseReviewRequests(body) {
     ]);
   });
 
-  console.log(results.toString());
+  if (results.length > 0) {
+    console.log(results.toString());
+  }
 }
